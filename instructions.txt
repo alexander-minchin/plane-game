@@ -1,0 +1,233 @@
+AI Gaming Agent Prompt: Project "AeroGenesis" - 3D Procedural Flight Game
+
+I. Overall Goal & Vision:
+
+You are tasked with designing and outlining the core structure for a 3D airplane game, code-named "AeroGenesis". The player pilots an airplane through a vast, procedurally generated 3D terrain. The primary focus is on exploration, smooth flight mechanics, and a visually appealing environment, all running efficiently within a modern web browser. The project emphasizes modern development practices, extensibility, and performance. The initial feel should be arcade-style exploration, potentially relaxing but visually engaging.
+
+II. Target Platform & Technology Stack:
+
+Platform: Modern Web Browsers (targeting Chrome, Firefox, Edge, Safari - latest versions).
+
+Core Technology: WebGL for 3D rendering.
+
+Recommended Library/Engine:
+
+Primary Recommendation: Three.js. Leverage its features for scene management, camera control, lighting, materials, and geometry handling. Utilize modern JavaScript (ES Modules) or TypeScript (preferred for type safety and scalability).
+
+Alternative (Consider if strong justification exists): Babylon.js. If chosen, justify why it's better suited than Three.js for this specific project's goals (e.g., specific features, community support, performance characteristics). Avoid: Higher-level engines that abstract away too much low-level control unless they demonstrably meet all requirements without significant overhead or limitations for procedural generation and custom flight physics.
+
+Language: TypeScript (preferred for robustness and maintainability) or modern JavaScript (ES6+ modules).
+
+Build Tools (Recommendation): Vite or Webpack for development server, module bundling, and optimizations.
+
+Dependencies: Clearly list all necessary libraries (e.g., Three.js, noise generation library like fast-simplex-noise or similar, potential UI library if needed).
+
+III. Core Game Mechanics:
+
+Airplane Control:
+
+Input: Primarily Keyboard (WASD for pitch/roll, Q/E for yaw OR Shift/Ctrl for throttle - specify preferred scheme). Consider optional Mouse control (mouse position dictates pitch/roll).
+
+Movement: Implement arcade-style flight physics. This includes:
+
+Thrust: Controllable by the player (e.g., Shift/Ctrl or W/S). Affects forward acceleration.
+
+Lift: Generated based on speed (simplified model, e.g., lift proportional to speed squared, up to a limit). Not necessarily true aerodynamic lift, but enough to feel plausible.
+
+Drag: Increases with speed, opposing motion.
+
+Gravity: Constant downward force.
+
+Turning: Implement pitch, roll, and yaw rotations based on player input, affecting the airplane's velocity vector. Prioritize responsive and intuitive controls over strict realism.
+
+Camera: Third-person chase camera that smoothly follows the airplane. Provide options for adjusting camera distance/angle if feasible later. A simple cockpit view (first-person) could be a secondary, optional mode.
+
+Collision Detection:
+
+Implement basic collision detection between the airplane and the terrain mesh.
+
+Collision Response: Upon collision, trigger a simple response (e.g., stop movement, play a sound/visual effect, reset player position slightly above the collision point, or trigger a 'Game Over'/'Crash' state). Start with a simple reset.
+
+Game State: Manage basic states: Loading, MainMenu (simple start button), Playing, Paused, Crashed (optional).
+
+IV. Procedural Terrain Generation:
+
+Algorithm: Use a noise-based algorithm like Simplex Noise or Perlin Noise. Combine multiple octaves (layers of noise at different frequencies and amplitudes) to create detailed terrain (Fractal Noise / Fractional Brownian Motion - fBM).
+
+Parameters: Expose parameters for terrain generation (ideally configurable, even if just in code initially):
+
+Scale: Controls the overall size of features.
+
+Octaves: Number of noise layers.
+
+Persistence: How much amplitude decreases for each octave.
+
+Lacunarity: How much frequency increases for each octave.
+
+HeightMultiplier: Controls the overall vertical scale of the terrain.
+
+Implementation:
+
+Chunking/Tiling: Generate the terrain in chunks (e.g., 64x64 vertices). Load/generate chunks dynamically based on the player's position to create a seemingly infinite world. Unload/hide distant chunks to maintain performance.
+
+Geometry: Create THREE.PlaneGeometry or custom THREE.BufferGeometry for each chunk. Displace vertices vertically based on the noise function value at their (x, z) coordinates.
+
+Level of Detail (LOD): Implement a simple LOD system. Farther chunks should use lower-resolution geometry (fewer vertices). This is critical for performance.
+
+Seams: Ensure generated chunk edges stitch together seamlessly. Vertex heights at chunk boundaries must match adjacent chunks.
+
+Performance: Consider generating terrain geometry in Web Workers to avoid blocking the main thread, especially if chunk generation is slow.
+
+Texturing/Coloring: Apply basic coloring or texturing based on terrain height and/or slope.
+
+Example: Snowcaps above a certain height, rock on steep slopes, grass/dirt on flatter areas, sand near a potential water level.
+
+Define a simple water plane at y=0 or another configurable height.
+
+V. Graphics & Rendering:
+
+Scene Setup: Standard Three.js scene with camera, lights, and game objects.
+
+Lighting: Implement directional light simulating the sun. Include ambient light for overall illumination.
+
+Materials: Use appropriate Three.js materials. Start with MeshStandardMaterial (if using PBR-like workflow) or MeshLambertMaterial / MeshPhongMaterial for simpler shading. Apply terrain colors/textures here.
+
+Skybox/Skydome: Implement a skybox or skydome to provide an atmospheric background. This could be a simple gradient or a textured cube/sphere.
+
+Fog: Implement distance fog (THREE.Fog or THREE.FogExp2) to enhance the sense of scale and hide distant rendering cutoff.
+
+Airplane Model: Start with a simple placeholder model (e.g., a composite of basic shapes like cones, cylinders, boxes, or a low-poly glider model if readily available). Ensure its orientation matches the flight dynamics.
+
+VI. User Interface (UI) / User Experience (UX):
+
+HUD (Heads-Up Display): Minimalist HUD rendered using HTML/CSS overlayed on the canvas. Display:
+
+Speed
+
+Altitude
+
+Optionally: Simple compass or direction indicator.
+
+Menus:
+
+Start Menu: Simple screen with a "Start Game" button.
+
+Pause Menu: Overlay shown when paused (e.g., pressing 'P' or 'Escape'). Options: "Resume", "Options" (placeholder), "Quit" (refresh/go back).
+
+Feedback: Provide clear visual feedback for controls and game events (e.g., subtle screen shake on crash, visual indicator for max/min throttle).
+
+VII. Audio:
+
+Engine Sound: Basic looping engine sound whose pitch and/or volume varies with the airplane's throttle/speed.
+
+Wind Noise: Looping ambient wind sound, potentially varying slightly with speed.
+
+Collision Sound: Simple sound effect for terrain collision.
+
+Technology: Use the Web Audio API for sound playback and control.
+
+VIII. Code Structure & Architecture:
+
+Modularity: Design the codebase with clear separation of concerns. Suggested modules/classes:
+
+GameManager: Main game loop, state management.
+
+Renderer: Handles Three.js scene setup, rendering loop.
+
+InputHandler: Captures and processes user input.
+
+PlayerController / Airplane: Manages airplane state, physics, model.
+
+TerrainManager: Handles procedural generation, chunk management, LOD.
+
+PhysicsEngine (Simple): Contains functions for applying forces, updating position/rotation (could be part of PlayerController initially).
+
+UIManager: Manages HTML overlays for HUD and menus.
+
+AudioManager: Handles loading and playing sounds.
+
+Constants: Store configuration values (physics parameters, terrain settings, etc.).
+
+Data Structures: Use appropriate data structures (e.g., Maps for chunk management).
+
+Object-Oriented / Functional: Employ classes and/or functional programming principles as appropriate for clarity and organization.
+
+Comments & Documentation: Write clear, concise comments explaining complex logic. Document the purpose of major classes and functions.
+
+Extensibility: Design components with future expansion in mind. For example, the PlayerController should be adaptable for different airplane types; the TerrainManager could be extended with different biomes or features. Avoid hardcoding values where possible; use constants or configuration objects.
+
+IX. Development Process & Considerations:
+
+Iterative Approach: Outline the steps needed to build this foundation. Start simple:
+
+Basic Three.js scene setup.
+
+Render a simple airplane placeholder.
+
+Implement basic keyboard controls (movement without physics).
+
+Generate a single, static terrain chunk.
+
+Implement basic arcade physics.
+
+Implement procedural generation for one chunk.
+
+Implement chunk loading/unloading based on player position.
+
+Add LOD.
+
+Add basic terrain coloring/texturing.
+
+Implement collision detection/response.
+
+Add UI elements (HUD, menus).
+
+Add audio.
+
+Performance: Keep performance in mind throughout. Profile frequently using browser developer tools. Optimize geometry, draw calls, and JavaScript execution. Pay close attention to garbage collection.
+
+Error Handling: Implement basic error handling (e.g., for asset loading).
+
+X. Potential Future Expansions (Keep in mind for architecture):
+
+More sophisticated flight model (optional simulation mode).
+
+Different airplane types with varying characteristics.
+
+Weather effects (clouds, rain, wind affecting flight).
+
+Day/night cycle.
+
+Collectibles or objectives (e.g., flying through rings).
+
+Simple AI air traffic.
+
+More diverse terrain features (rivers, caves, structures).
+
+Improved texturing and shaders (e.g., PBR materials, normal maps).
+
+Multiplayer capabilities.
+
+XI. Deliverables Requested:
+
+Project Structure: A description of the recommended directory structure and key files.
+
+Core Module Outlines: Provide skeleton code or detailed pseudo-code for the key modules identified in Section VIII (e.g., TerrainManager, PlayerController, Renderer).
+
+Key Algorithm Implementation Snippets: Provide code examples for:
+
+Calculating vertex height using multi-octave noise.
+
+Basic arcade physics update loop (applying forces).
+
+Conceptual chunk management logic (loading/unloading based on position).
+
+Setup Instructions: List necessary dependencies and provide basic commands for setting up the project (using the recommended build tool).
+
+Technology Justification: Briefly explain the rationale behind choosing Three.js (or an alternative) and TypeScript.
+
+Design Choice Explanations: Explain any critical architectural decisions made (e.g., chunking strategy, LOD approach, physics simplification).
+
+XII. Clarifications:
+
+If any part of this prompt is unclear or requires further assumptions, please state them or ask for clarification before proceeding. Focus on creating a solid, extensible foundation according to best practices for modern web game development.
