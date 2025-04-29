@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { NoiseProvider } from './NoiseProvider';
 import { PhysicsEngine } from './PhysicsEngine';
-import { Vector3 } from './types'; // Assuming Vector3 is defined in types.ts
+// Import biome definitions and parameters
+import { MOUNTAINS_BIOME, PLAINS_BIOME, Vector3 } from './types';
 
 // Represents a single segment of the terrain mesh.
 export class TerrainChunk {
@@ -43,7 +44,7 @@ export class TerrainChunk {
         this.material = new THREE.MeshStandardMaterial({
             // color: 0x88aa88, // Base color, will be overridden by vertex colors
             wireframe: false,
-            flatShading: false,
+            flatShading: false, // Use smooth shading for better biome transitions
             vertexColors: true // Enable vertex colors
         });
 
@@ -64,61 +65,57 @@ export class TerrainChunk {
         // this.collider = this.createCollider();
         // this.physicsEngine.addTerrainCollider(this.collider);
 
-        console.log(`TerrainChunk [${chunkX}, ${chunkZ}] created.`);
+        console.log(`TerrainChunk [${chunkX}, ${chunkZ}] created with resolution ${resolution}.`);
     }
 
     /**
-     * Generates the terrain geometry, including height displacement and vertex colors.
+     * Generates the terrain geometry, including height displacement and biome-based vertex colors.
      */
     private generateGeometry(): void {
         const vertices = this.geometry.attributes.position;
         const colors = new Float32Array(vertices.count * 3); // RGB for each vertex
         const vertex = new THREE.Vector3();
+        const finalColor = new THREE.Color(); // Reusable color object for interpolation
 
-        const waterLevel = 5.0; // Example water level
-        const sandLevel = 10.0;
-        const grassLevel = 30.0;
-        const rockLevel = 45.0;
+        // Pre-create THREE.Color objects for biome base colors for efficiency
+        const mountainColor1 = new THREE.Color(MOUNTAINS_BIOME.color1.r, MOUNTAINS_BIOME.color1.g, MOUNTAINS_BIOME.color1.b);
+        const mountainColor2 = new THREE.Color(MOUNTAINS_BIOME.color2.r, MOUNTAINS_BIOME.color2.g, MOUNTAINS_BIOME.color2.b);
+        const plainsColor1 = new THREE.Color(PLAINS_BIOME.color1.r, PLAINS_BIOME.color1.g, PLAINS_BIOME.color1.b);
+        const plainsColor2 = new THREE.Color(PLAINS_BIOME.color2.r, PLAINS_BIOME.color2.g, PLAINS_BIOME.color2.b);
 
-        const waterColor = new THREE.Color(0x4466aa); // Blue
-        const sandColor = new THREE.Color(0xc2b280); // Sandy
-        const grassColor = new THREE.Color(0x559955); // Green
-        const rockColor = new THREE.Color(0x888888); // Grey
-        const snowColor = new THREE.Color(0xffffff); // White
 
         for (let i = 0; i < vertices.count; i++) {
             vertex.fromBufferAttribute(vertices, i);
 
             // Calculate world coordinates for noise sampling
-            // Vertex positions are relative to the mesh's origin
             const worldX = this.mesh.position.x + vertex.x;
             const worldZ = this.mesh.position.z + vertex.z;
 
-            // Get height from NoiseProvider
+            // Get height and biome influence from NoiseProvider
             const height = this.noiseProvider.getHeight(worldX, worldZ);
+            const biomeInfluence = this.noiseProvider.getBiomeInfluence(worldX, worldZ); // 0 = Mountains, 1 = Plains
 
             // Apply height to vertex y-coordinate
             vertices.setY(i, height);
 
-            // Determine color based on height
-            let color: THREE.Color;
-            if (height < waterLevel) {
-                color = waterColor;
-                // Optionally clamp height to water level for flat water surface
-                // vertices.setY(i, waterLevel);
-            } else if (height < sandLevel) {
-                color = sandColor;
-            } else if (height < grassLevel) {
-                color = grassColor;
-            } else if (height < rockLevel) {
-                color = rockColor;
-            } else {
-                color = snowColor;
-            }
+            // --- Biome Color Interpolation ---
+            // Determine color contribution from each biome based on height (e.g., snow caps)
+            // This is a simple example; more complex logic could be used.
+            // Normalize height relative to biome max amplitude for color mixing within the biome.
+            const mountainHeightRatio = Math.max(0, Math.min(1, height / MOUNTAINS_BIOME.amplitude)); // Clamp 0-1
+            const plainsHeightRatio = Math.max(0, Math.min(1, height / PLAINS_BIOME.amplitude)); // Clamp 0-1
 
-            colors[i * 3] = color.r;
-            colors[i * 3 + 1] = color.g;
-            colors[i * 3 + 2] = color.b;
+            // Interpolate within each biome's color range based on height ratio
+            const mountainColor = new THREE.Color().lerpColors(mountainColor1, mountainColor2, mountainHeightRatio);
+            const plainsColor = new THREE.Color().lerpColors(plainsColor1, plainsColor2, plainsHeightRatio);
+
+            // Interpolate between the final mountain and plains colors based on biome influence
+            finalColor.lerpColors(mountainColor, plainsColor, biomeInfluence);
+
+            // --- Store Final Color ---
+            colors[i * 3] = finalColor.r;
+            colors[i * 3 + 1] = finalColor.g;
+            colors[i * 3 + 2] = finalColor.b;
         }
 
         this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -135,12 +132,20 @@ export class TerrainChunk {
 
     public update(playerPosition: Vector3): void {
         // Placeholder for Level of Detail (LOD) logic or other updates
+        // This method is currently not used for LOD updates in TerrainManager's approach
     }
 
     public getMesh(): THREE.Mesh {
         return this.mesh;
     }
 
+/**
+     * Provides access to the chunk's geometry for testing or specific updates.
+     * @returns The THREE.PlaneGeometry instance.
+     */
+    public getGeometry(): THREE.PlaneGeometry {
+        return this.geometry;
+    }
     // public getCollider(): any {
     //     return this.collider;
     // }

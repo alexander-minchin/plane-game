@@ -1,64 +1,116 @@
 import { makeNoise2D } from 'fast-simplex-noise';
+import {
+    BiomeParameters,
+    MOUNTAINS_BIOME,
+    PLAINS_BIOME
+} from './types'; // Import biome types and constants
 
 /**
  * Provides noise generation capabilities, abstracting the specific library used.
- * Generates multi-octave simplex noise for terrain height.
+ * Generates multi-octave simplex noise for terrain height, incorporating biomes.
  */
 export class NoiseProvider {
-    private noise2D: (x: number, y: number) => number;
+    private terrainNoise2D: (x: number, y: number) => number;
+    private biomeNoise2D: (x: number, y: number) => number; // Noise for biome distribution
     private octaves: number;
     private persistence: number;
     private lacunarity: number;
-    private scale: number;
-    private amplitudeMultiplier: number; // Added to control overall height
+    // Removed scale and amplitudeMultiplier, now handled by biomes
+    private biomeScale: number; // Scale for the biome distribution noise
 
     constructor(
         octaves: number = 4,
         persistence: number = 0.5,
         lacunarity: number = 2.0,
-        scale: number = 100.0, // Controls the overall feature size
-        amplitudeMultiplier: number = 50.0 // Controls the max height variation
+        biomeScale: number = 500.0 // Controls the size of biome regions
+        // Removed scale and amplitudeMultiplier from constructor
     ) {
-        this.noise2D = makeNoise2D(); // Use default seeding
+        // Use different seeds or instances if possible, though makeNoise2D doesn't support seeding directly
+        this.terrainNoise2D = makeNoise2D();
+        this.biomeNoise2D = makeNoise2D(); // Separate noise instance for biomes
         this.octaves = octaves;
         this.persistence = persistence;
         this.lacunarity = lacunarity;
-        this.scale = scale;
-        this.amplitudeMultiplier = amplitudeMultiplier;
+        this.biomeScale = biomeScale;
 
-        console.log("NoiseProvider initialized.");
+        console.log("NoiseProvider initialized with biome support.");
+    }
+
+/**
+     * Generates a raw biome noise value for the given world coordinates.
+     * Used to determine biome distribution.
+     * @param worldX World x-coordinate.
+     * @param worldZ World z-coordinate.
+     * @returns A noise value, typically between -1 and 1.
+     */
+    public getBiomeNoise(worldX: number, worldZ: number): number {
+        return this.biomeNoise2D(worldX / this.biomeScale, worldZ / this.biomeScale);
+    }
+    /**
+     * Calculates the influence of the Plains biome at a given world coordinate.
+     * @param worldX World x-coordinate.
+     * @param worldZ World z-coordinate.
+     * @returns A value between 0 (fully Mountains) and 1 (fully Plains).
+     */
+    public getBiomeInfluence(worldX: number, worldZ: number): number {
+        const biomeNoiseVal = this.getBiomeNoise(worldX, worldZ); // Use the public method
+        // Map noise from [-1, 1] to [0, 1]
+        // Add a slight bias towards mountains maybe? Or keep it simple 0-1 for now.
+        return (biomeNoiseVal + 1) / 2;
     }
 
     /**
-     * Generates a terrain height value for the given world coordinates using layered noise.
+     * Generates a terrain height value for the given world coordinates,
+     * interpolating between biomes based on biome noise.
      * @param worldX The world x-coordinate.
      * @param worldZ The world z-coordinate (used as y in the 2D noise function).
      * @returns The calculated height value.
      */
     public getHeight(worldX: number, worldZ: number): number {
+        const biomeInfluence = this.getBiomeInfluence(worldX, worldZ); // 0 = Mountains, 1 = Plains
+
+        // Calculate height contribution for each biome
+        const mountainHeight = this.calculateBiomeHeight(worldX, worldZ, MOUNTAINS_BIOME);
+        const plainsHeight = this.calculateBiomeHeight(worldX, worldZ, PLAINS_BIOME);
+
+        // Interpolate between the two biome heights
+        const finalHeight = mountainHeight * (1 - biomeInfluence) + plainsHeight * biomeInfluence;
+
+        return finalHeight;
+    }
+
+    /**
+     * Helper function to calculate the noise height for a specific biome's parameters.
+     * @param worldX World x-coordinate.
+     * @param worldZ World z-coordinate.
+     * @param biome The biome parameters to use.
+     * @returns The calculated height for that biome at the given coordinates.
+     */
+    private calculateBiomeHeight(worldX: number, worldZ: number, biome: BiomeParameters): number {
         let total = 0;
-        let frequency = 1;
-        let amplitude = 1;
-        let maxValue = 0; // Used for normalizing result to [-1, 1] before applying multiplier
+        let frequency = biome.frequency; // Use biome's base frequency
+        let amplitude = 1; // Start amplitude at 1 for normalization calculation
+        let maxValue = 0; // Used for normalizing result to [-1, 1] before applying biome amplitude
 
         for(let i = 0; i < this.octaves; i++) {
-            // Apply scale here to control the overall size of noise features
-            const sampleX = worldX / this.scale * frequency;
-            const sampleZ = worldZ / this.scale * frequency;
+            // Use biome frequency directly (scale is incorporated into frequency)
+            const sampleX = worldX * frequency;
+            const sampleZ = worldZ * frequency;
 
-            total += this.noise2D(sampleX, sampleZ) * amplitude;
+            total += this.terrainNoise2D(sampleX, sampleZ) * amplitude;
 
             maxValue += amplitude;
             amplitude *= this.persistence;
-            frequency *= this.lacunarity;
+            frequency *= this.lacunarity; // Lacunarity affects frequency across octaves
         }
 
         // Normalize the total noise value to be between -1 and 1
         const normalizedHeight = maxValue === 0 ? 0 : total / maxValue;
 
-        // Apply the amplitude multiplier to control the final height range
-        return normalizedHeight * this.amplitudeMultiplier;
+        // Apply the biome's specific amplitude multiplier
+        return normalizedHeight * biome.amplitude;
     }
+
 
     /**
      * Generates a raw 2D noise value for the given coordinates (less common use).
@@ -67,6 +119,7 @@ export class NoiseProvider {
      * @returns A noise value, typically between -1 and 1.
      */
     public getRawNoise(x: number, y: number): number {
-        return this.noise2D(x, y);
+        // Which noise to return? Terrain noise seems more relevant usually.
+        return this.terrainNoise2D(x, y);
     }
 }
